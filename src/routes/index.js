@@ -8,6 +8,15 @@ import DetalheInstituicao from '@/pages/DetalheInstituicao.vue'
 import CadastroLogin from '@/pages/Cadastro/CadastroLogin.vue'
 import Painel from '@/pages/Painel.vue'
 import Documentos from '@/pages/Documentos.vue'
+import Agendamentos from '@/pages/Agendamentos.vue'
+import Notificacoes from '@/pages/Notificacoes.vue'
+import MinhaInstituicao from '@/pages/MinhaInstituicao.vue'
+import GovernoAdotantes from '@/pages/GovernoAdotantes.vue'
+import GovernoDetalheAdotante from '@/pages/GovernoDetalheAdotante.vue'
+import GovernoInstituicoes from '@/pages/GovernoInstituicoes.vue'
+import InstituicaoVisitas from '@/pages/InstituicaoVisitas.vue'
+import InstituicaoRelatorioVisita from '@/pages/InstituicaoRelatorioVisita.vue'
+import InstituicaoPerfil from '@/pages/InstituicaoPerfil.vue'
 
 const routes = [
   // Área pública
@@ -21,6 +30,15 @@ const routes = [
   // Painel do adotante
   { path: '/painel', name: 'painel', component: Painel },
   { path: '/painel/documentos', name: 'documentos', component: Documentos },
+  { path: '/painel/agendamentos', name: 'agendamentos', component: Agendamentos },
+  { path: '/painel/notificacoes', name: 'notificacoes', component: Notificacoes },
+  { path: '/painel/minha-instituicao', name: 'minha-instituicao', component: MinhaInstituicao },
+  { path: '/governo/adotantes', name: 'governo-adotantes', component: GovernoAdotantes },
+  { path: '/governo/adotantes/:id', name: 'governo-detalhe-adotante', component: GovernoDetalheAdotante },
+  { path: '/governo/instituicoes', name: 'governo-instituicoes', component: GovernoInstituicoes },
+  { path: '/instituicao/visitas', name: 'inst-visitas', component: InstituicaoVisitas },
+  { path: '/instituicao/visitas/:id/relatorio', name: 'inst-relatorio', component: InstituicaoRelatorioVisita },
+  { path: '/instituicao/perfil', name: 'inst-perfil', component: InstituicaoPerfil },
 
   // Catch-all
   { path: '/:pathMatch(.*)*', redirect: '/' }
