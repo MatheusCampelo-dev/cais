@@ -1,9 +1,10 @@
 <script setup>
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import LogoCais from '@/assets/logo/LogoCais.vue'
 import { useUserStore } from '@/store/user'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 
 const links = [
@@ -15,6 +16,13 @@ const links = [
 ]
 
 const isActive = (name) => route.name === name
+
+const sair = () => {
+  if (confirm('Deseja realmente sair? Sua sessão será encerrada.')) {
+    userStore.logout()
+    router.push('/')
+  }
+}
 </script>
 
 <template>
@@ -45,12 +53,19 @@ const isActive = (name) => route.name === name
       </RouterLink>
     </nav>
 
+    <!-- Card do usuário com Sair -->
     <div class="user-card">
-      <div class="avatar">{{ userStore.iniciais }}</div>
-      <div class="user-info">
-        <p class="user-name">{{ userStore.nome }}</p>
-        <p class="user-role">Adotante</p>
+      <div class="user-row">
+        <div class="avatar">{{ userStore.iniciais }}</div>
+        <div class="user-info">
+          <p class="user-name">{{ userStore.nome }}</p>
+          <p class="user-role">Adotante</p>
+        </div>
       </div>
+      <button class="btn-sair" @click="sair" type="button">
+        <i class="ti ti-logout"></i>
+        Sair
+      </button>
     </div>
   </aside>
 </template>
@@ -88,10 +103,8 @@ const isActive = (name) => route.name === name
   font-weight: 500;
   font-size: 14px;
 }
-.brand-icon {
-  font-size: 20px;
-  color: var(--color-primary);
-}
+.brand-icon { font-size: 20px; color: var(--color-primary); }
+
 .nav {
   display: flex;
   flex-direction: column;
@@ -109,16 +122,12 @@ const isActive = (name) => route.name === name
   font-weight: 500;
   transition: all 0.15s;
 }
-.nav-item:hover {
-  background: rgba(0,0,0,0.04);
-}
+.nav-item:hover { background: rgba(0,0,0,0.04); }
 .nav-item.active {
   background: var(--color-primary-soft);
   color: var(--color-primary);
 }
-.nav-item .ti {
-  font-size: 18px;
-}
+.nav-item .ti { font-size: 18px; }
 .badge {
   margin-left: auto;
   background: var(--color-primary);
@@ -130,13 +139,20 @@ const isActive = (name) => route.name === name
   min-width: 22px;
   text-align: center;
 }
+
+/* card de usuário */
 .user-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+.user-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 20px;
-  margin-top: 16px;
-  border-top: 1px solid var(--color-border);
 }
 .avatar {
   width: 36px;
@@ -149,17 +165,40 @@ const isActive = (name) => route.name === name
   justify-content: center;
   font-size: 13px;
   font-weight: 600;
+  flex-shrink: 0;
 }
-.user-info {
-  display: flex;
-  flex-direction: column;
-}
+.user-info { min-width: 0; overflow: hidden; }
 .user-name {
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .user-role {
   font-size: 11px;
   color: var(--color-text-tertiary);
 }
+
+.btn-sair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-sair:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.btn-sair .ti { font-size: 16px; }
 </style>

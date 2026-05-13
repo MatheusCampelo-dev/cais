@@ -17,6 +17,13 @@ import GovernoInstituicoes from '@/pages/GovernoInstituicoes.vue'
 import InstituicaoVisitas from '@/pages/InstituicaoVisitas.vue'
 import InstituicaoRelatorioVisita from '@/pages/InstituicaoRelatorioVisita.vue'
 import InstituicaoPerfil from '@/pages/InstituicaoPerfil.vue'
+import Sobre from '@/pages/Sobre.vue'
+import Privacidade from '@/pages/Privacidade.vue'
+import Acessibilidade from '@/pages/Acessibilidade.vue'
+import GovernoPainel from '@/pages/GovernoPainel.vue'
+import GovernoVaras from '@/pages/GovernoVaras.vue'
+import GovernoRelatorios from '@/pages/GovernoRelatorios.vue'
+import InstituicaoRelatorios from '@/pages/InstituicaoRelatorios.vue'
 
 const routes = [
   // Área pública
@@ -39,6 +46,13 @@ const routes = [
   { path: '/instituicao/visitas', name: 'inst-visitas', component: InstituicaoVisitas },
   { path: '/instituicao/visitas/:id/relatorio', name: 'inst-relatorio', component: InstituicaoRelatorioVisita },
   { path: '/instituicao/perfil', name: 'inst-perfil', component: InstituicaoPerfil },
+  { path: '/sobre', name: 'sobre', component: Sobre },
+  { path: '/privacidade', name: 'privacidade', component: Privacidade },
+  { path: '/acessibilidade', name: 'acessibilidade', component: Acessibilidade },
+  { path: '/governo', name: 'governo-painel', component: GovernoPainel },
+  { path: '/governo/varas', name: 'governo-varas', component: GovernoVaras },
+  { path: '/governo/relatorios', name: 'governo-relatorios', component: GovernoRelatorios },
+  { path: '/instituicao/relatorios', name: 'inst-relatorios', component: InstituicaoRelatorios },
 
   // Catch-all
   { path: '/:pathMatch(.*)*', redirect: '/' }
