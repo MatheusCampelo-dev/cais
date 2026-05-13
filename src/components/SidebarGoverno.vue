@@ -8,8 +8,6 @@ const links = [
   { to: '/governo', label: 'Painel', icon: 'ti-layout-dashboard', name: 'governo-painel' },
   { to: '/governo/adotantes', label: 'Adotantes', icon: 'ti-users', name: 'governo-adotantes' },
   { to: '/governo/instituicoes', label: 'Instituições', icon: 'ti-building', name: 'governo-instituicoes' },
-  { to: '/governo/varas', label: 'Varas', icon: 'ti-scale', name: 'governo-varas' },
-  { to: '/governo/relatorios', label: 'Relatórios', icon: 'ti-chart-bar', name: 'governo-relatorios' }
 ]
 
 const isActive = (name) => route.name === name

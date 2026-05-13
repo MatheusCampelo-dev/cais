@@ -14,7 +14,7 @@ const kpis = [
 const alertas = [
   { tipo: 'urgente', titulo: 'Maria Silva — documento vencido', detalhe: 'Atestado de sanidade mental precisa ser reapresentado.', acao: 'Ver processo', rota: '/governo/adotantes/1' },
   { tipo: 'alerta', titulo: 'Lar Nossa Senhora — lotado', detalhe: '40 de 40 vagas ocupadas. Considere redistribuir.', acao: 'Ver instituições', rota: '/governo/instituicoes' },
-  { tipo: 'info', titulo: '5 visitas marcadas para amanhã', detalhe: 'Acompanhe a agenda das instituições.', acao: 'Ver agenda', rota: '/governo/relatorios' }
+  { tipo: 'info', titulo: '5 visitas marcadas para amanhã', detalhe: 'Acompanhe a agenda das instituições.', acao: 'Ver agenda', rota: '/governo/instituicoes' }
 ]
 
 const proximos = [
@@ -109,16 +109,6 @@ const proximos = [
             <i class="ti ti-building"></i>
             <span>Instituições</span>
             <p>Monitorar lotação dos lares</p>
-          </button>
-          <button class="atalho" @click="router.push('/governo/varas')">
-            <i class="ti ti-scale"></i>
-            <span>Varas</span>
-            <p>Cadastrar comarcas e contatos</p>
-          </button>
-          <button class="atalho" @click="router.push('/governo/relatorios')">
-            <i class="ti ti-chart-bar"></i>
-            <span>Relatórios</span>
-            <p>Estatísticas e exportação</p>
           </button>
         </div>
       </section>
