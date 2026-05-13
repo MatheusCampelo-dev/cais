@@ -159,7 +159,9 @@ const passos = [
   justify-content: center;
 }
 .hero-ilustracao svg {
-  max-width: 380px;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
 }
 
 /* seções */
