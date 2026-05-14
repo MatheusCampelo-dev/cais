@@ -1,8 +1,11 @@
 <script setup>
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import LogoCais from '@/assets/logo/LogoCais.vue'
+import { useUserStore } from '@/store/user'
 
 const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
 
 const links = [
   { to: '/instituicao/painel', label: 'Painel', icon: 'ti-layout-dashboard', name: 'inst-painel' },
@@ -12,6 +15,11 @@ const links = [
 ]
 
 const isActive = (name) => route.name === name
+
+const sair = () => {
+  userStore.logout()
+  router.push('/')
+}
 </script>
 
 <template>
@@ -27,7 +35,7 @@ const isActive = (name) => route.name === name
     <div class="brand-section">
       <i class="ti ti-building brand-icon"></i>
       <div>
-        <p class="brand-label">Lar Pequeno Príncipe</p>
+        <p class="brand-label">{{ userStore.nome || 'Instituição' }}</p>
         <p class="brand-sub">Instituição de Acolhimento</p>
       </div>
     </div>
@@ -44,12 +52,11 @@ const isActive = (name) => route.name === name
       </RouterLink>
     </nav>
 
-    <div class="user-card">
-      <div class="avatar">RP</div>
-      <div class="user-info">
-        <p class="user-name">Roberta Pessoa</p>
-        <p class="user-role">Coordenadora</p>
-      </div>
+    <div class="sair-card">
+      <button class="btn-sair" @click="sair">
+        <i class="ti ti-logout"></i>
+        <span>Sair</span>
+      </button>
     </div>
   </aside>
 </template>
@@ -121,26 +128,23 @@ const isActive = (name) => route.name === name
 }
 .nav-item .ti { font-size: 18px; }
 
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  margin-top: 16px;
+.sair-card {
+  padding: 12px 20px;
   border-top: 1px solid var(--color-border);
+  margin-top: 16px;
 }
-.avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #FAEEDA;
-  color: #854F0B;
+.btn-sair {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  width: 100%;
+  transition: all 0.15s;
 }
-.user-name { font-size: 13px; font-weight: 600; }
-.user-role { font-size: 11px; color: var(--color-text-tertiary); }
+.btn-sair .ti { font-size: 16px; }
+.btn-sair:hover { background: var(--color-danger-soft); color: var(--color-danger); }
 </style>

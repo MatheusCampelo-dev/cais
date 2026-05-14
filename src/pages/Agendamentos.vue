@@ -1,138 +1,144 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PainelLayout from '@/components/PainelLayout.vue'
+import { visitasService } from '@/service/index'
 
+const router = useRouter()
+
+const visitas = ref([])
+const carregando = ref(true)
 const filtroAtivo = ref('todos')
 
-const agendamentos = [
-  {
-    id: 1,
-    titulo: 'Entrega de documentos',
-    local: 'Vara da Infância — Recife',
-    endereco: 'Av. Desembargador Guerra Barreto, 200 — Ilha Joana Bezerra',
-    data: '2026-05-18',
-    diaSemana: 'Segunda',
-    horario: '14h às 15h',
-    tipo: 'vara',
-    status: 'confirmado',
-    icone: 'ti-file-text',
-    cor: 'azul'
-  },
-  {
-    id: 2,
-    titulo: 'Entrevista psicológica',
-    local: 'Vara da Infância — Recife',
-    endereco: 'Sala 4 · 3º andar',
-    data: '2026-05-25',
-    diaSemana: 'Segunda',
-    horario: '10h às 11h30',
-    tipo: 'vara',
-    status: 'confirmado',
-    icone: 'ti-message-circle',
-    cor: 'roxo'
-  },
-  {
-    id: 3,
-    titulo: '1ª visita de aproximação',
-    local: 'Lar Pequeno Príncipe',
-    endereco: 'R. das Flores, 240 — Boa Vista, Recife',
-    data: '2026-05-14',
-    diaSemana: 'Quinta',
-    horario: '14h às 16h',
-    tipo: 'instituicao',
-    status: 'confirmado',
-    icone: 'ti-home-heart',
-    cor: 'verde'
-  }
-]
+const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
-const historico = [
-  { titulo: 'Curso de preparação · Encontro 4', local: 'Vara da Infância — Recife', data: '02/05/2026', status: 'compareceu' },
-  { titulo: 'Visita domiciliar', local: 'Equipe técnica da Vara', data: '18/04/2026', status: 'compareceu' },
-  { titulo: 'Entrevista social', local: 'Vara da Infância — Recife', data: '05/04/2026', status: 'compareceu' }
-]
+const proximas = computed(() => visitas.value.filter(v => v.status_visita === 'agendada'))
+const realizadas = computed(() => visitas.value.filter(v => v.status_visita === 'realizada'))
 
-const formatarData = (data) => {
-  const d = new Date(data + 'T00:00:00')
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })
+const aplicarFiltro = (lista) => {
+  if (filtroAtivo.value === 'todos') return lista
+  return lista.filter(v => v._fonte === filtroAtivo.value)
 }
 
-const agendamentosFiltrados = computed(() => {
-  if (filtroAtivo.value === 'todos') return agendamentos
-  return agendamentos.filter(a => a.tipo === filtroAtivo.value)
+const proximasFiltradas = computed(() => aplicarFiltro(proximas.value))
+const realizadasFiltradas = computed(() => aplicarFiltro(realizadas.value))
+
+const diaSemana = (dataStr) =>
+  dataStr ? DIAS_SEMANA[new Date(dataStr + 'T00:00:00').getDay()] : ''
+
+const dia = (dataStr) =>
+  dataStr ? new Date(dataStr + 'T00:00:00').getDate() : ''
+
+const mes = (dataStr) =>
+  dataStr ? new Date(dataStr + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase() : ''
+
+const horario = (inicio, fim) => {
+  const h1 = inicio?.slice(0, 5) ?? ''
+  const h2 = fim?.slice(0, 5) ?? ''
+  return h2 && h2 !== h1 ? `${h1} às ${h2}` : h1
+}
+
+const dataFormatada = (dataStr) =>
+  dataStr ? new Date(dataStr + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
+
+onMounted(async () => {
+  try {
+    visitas.value = await visitasService.minhaAgenda()
+  } catch {
+    visitas.value = []
+  } finally {
+    carregando.value = false
+  }
 })
 </script>
 
 <template>
   <PainelLayout>
     <div class="conteudo">
+      <button class="voltar" @click="router.push('/painel')" type="button">
+        <i class="ti ti-arrow-left"></i>
+        Voltar ao painel
+      </button>
+
       <h1>Agendamentos</h1>
-      <p class="subtitulo">3 compromissos confirmados</p>
+      <p class="subtitulo">
+        <template v-if="carregando">Carregando...</template>
+        <template v-else>{{ proximas.length }} próximo{{ proximas.length !== 1 ? 's' : '' }} · {{ realizadas.length }} realizado{{ realizadas.length !== 1 ? 's' : '' }}</template>
+      </p>
 
-      <!-- Filtros -->
-      <div class="filtros">
-        <button
-          :class="['chip', { ativo: filtroAtivo === 'todos' }]"
-          @click="filtroAtivo = 'todos'"
-        >
-          Todos
-        </button>
-        <button
-          :class="['chip', { ativo: filtroAtivo === 'vara' }]"
-          @click="filtroAtivo = 'vara'"
-        >
-          Vara
-        </button>
-        <button
-          :class="['chip', { ativo: filtroAtivo === 'instituicao' }]"
-          @click="filtroAtivo = 'instituicao'"
-        >
-          Instituição
-        </button>
-      </div>
+      <div v-if="carregando" class="msg-estado">Carregando agenda...</div>
 
-      <!-- Próximos -->
-      <p class="bloco-titulo">PRÓXIMOS COMPROMISSOS</p>
-      <div class="lista">
-        <div v-for="ag in agendamentosFiltrados" :key="ag.id" class="card-agendamento">
-          <div class="data-box">
-            <span class="dia">{{ new Date(ag.data + 'T00:00:00').getDate() }}</span>
-            <span class="mes">{{ new Date(ag.data + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' }).replace('.','') }}</span>
-            <span class="dia-semana">{{ ag.diaSemana }}</span>
-          </div>
-          <div class="info">
-            <div class="info-header">
-              <div :class="['icone-tipo', `cor-${ag.cor}`]">
-                <i :class="['ti', ag.icone]"></i>
-              </div>
-              <h3>{{ ag.titulo }}</h3>
-              <span class="badge-status">Confirmado</span>
+      <template v-else>
+        <!-- Próximos -->
+        <p class="bloco-titulo">PRÓXIMOS COMPROMISSOS</p>
+
+        <div v-if="proximasFiltradas.length === 0" class="card-vazio">
+          <i class="ti ti-calendar-off"></i>
+          <p>Nenhum compromisso próximo. Quando a instituição agendar uma visita, ela aparecerá aqui.</p>
+        </div>
+
+        <div v-else class="lista">
+          <div v-for="v in proximasFiltradas" :key="v.id" class="card-agendamento">
+            <div class="data-box">
+              <span class="dia">{{ dia(v.data_visita) }}</span>
+              <span class="mes">{{ mes(v.data_visita) }}</span>
+              <span class="dia-semana">{{ diaSemana(v.data_visita) }}</span>
             </div>
-            <p class="local"><i class="ti ti-map-pin"></i> {{ ag.local }}</p>
-            <p class="endereco">{{ ag.endereco }}</p>
-            <p class="horario"><i class="ti ti-clock"></i> {{ ag.horario }}</p>
+            <div class="info">
+              <div class="info-header">
+                <div class="icone-tipo cor-azul">
+                  <i class="ti ti-home-heart"></i>
+                </div>
+                <h3>{{ v.tipo_visita }}</h3>
+                <span class="badge-status">Confirmado</span>
+              </div>
+              <p class="local">
+                <i class="ti ti-building"></i>
+                {{ v.instituicao?.nome ?? 'Instituição' }}
+              </p>
+              <p class="horario"><i class="ti ti-clock"></i> {{ horario(v.hora_inicio, v.hora_fim) }}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Histórico -->
-      <p class="bloco-titulo">HISTÓRICO</p>
-      <div class="historico">
-        <div v-for="(item, idx) in historico" :key="idx" class="hist-item">
-          <i class="ti ti-circle-check"></i>
-          <div class="hist-info">
-            <p class="hist-titulo">{{ item.titulo }}</p>
-            <p class="hist-meta">{{ item.local }} · {{ item.data }}</p>
-          </div>
-          <span class="hist-tag">Compareceu</span>
+        <!-- Histórico -->
+        <p class="bloco-titulo">HISTÓRICO</p>
+
+        <div v-if="realizadasFiltradas.length === 0" class="historico-vazio">
+          <p>Nenhuma visita realizada ainda.</p>
         </div>
-      </div>
+
+        <div v-else class="historico">
+          <div v-for="v in realizadasFiltradas" :key="v.id" class="hist-item">
+            <i class="ti ti-circle-check"></i>
+            <div class="hist-info">
+              <p class="hist-titulo">{{ v.tipo_visita }}</p>
+              <p class="hist-meta">
+                {{ v.instituicao?.nome ?? 'Instituição' }} · {{ dataFormatada(v.data_visita) }}
+              </p>
+            </div>
+            <span class="hist-tag">Realizada</span>
+          </div>
+        </div>
+      </template>
     </div>
   </PainelLayout>
 </template>
 
 <style scoped>
 .conteudo { max-width: 880px; }
+
+.voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  padding: 0;
+}
+.voltar:hover { text-decoration: underline; }
 
 h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 .subtitulo {
@@ -141,27 +147,10 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   margin-bottom: 20px;
 }
 
-/* filtros */
-.filtros {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-.chip {
-  padding: 7px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
+.msg-estado {
+  font-size: 14px;
   color: var(--color-text-secondary);
-  transition: all 0.15s;
-}
-.chip:hover { border-color: var(--color-border-strong); }
-.chip.ativo {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  padding: 16px 0;
 }
 
 .bloco-titulo {
@@ -171,9 +160,27 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   letter-spacing: 1px;
   margin: 28px 0 12px;
 }
-.bloco-titulo:first-of-type { margin-top: 0; }
 
-/* cards agendamento */
+.card-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+.card-vazio .ti { font-size: 36px; }
+.card-vazio p { font-size: 14px; }
+
+.historico-vazio {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 16px 0;
+}
+
 .lista {
   display: flex;
   flex-direction: column;
@@ -240,8 +247,6 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   flex-shrink: 0;
 }
 .cor-azul { background: var(--color-primary-soft); color: var(--color-primary); }
-.cor-verde { background: var(--color-success-soft); color: var(--color-success); }
-.cor-roxo { background: #EEEDFE; color: #5448A6; }
 
 .info h3 {
   flex: 1;
@@ -257,7 +262,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   font-weight: 500;
 }
 
-.local, .endereco, .horario {
+.local, .horario {
   font-size: 13px;
   color: var(--color-text-secondary);
   display: flex;
@@ -269,13 +274,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   font-size: 14px;
   color: var(--color-text-tertiary);
 }
-.endereco {
-  padding-left: 20px;
-  font-size: 12px;
-  color: var(--color-text-tertiary);
-}
 
-/* histórico */
 .historico {
   display: flex;
   flex-direction: column;

@@ -12,7 +12,7 @@ const links = [
   { to: '/painel/documentos', label: 'Documentos', icon: 'ti-file-text', name: 'documentos' },
   { to: '/painel/agendamentos', label: 'Agendamentos', icon: 'ti-calendar', name: 'agendamentos' },
   { to: '/painel/minha-instituicao', label: 'Minha instituição', icon: 'ti-home-heart', name: 'minha-instituicao' },
-  { to: '/painel/notificacoes', label: 'Notificações', icon: 'ti-bell', name: 'notificacoes', badge: 3 }
+  { to: '/painel/notificacoes', label: 'Notificações', icon: 'ti-bell', name: 'notificacoes' }
 ]
 
 const isActive = (name) => route.name === name

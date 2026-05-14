@@ -1,97 +1,171 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import InstituicaoLayout from '@/components/InstituicaoLayout.vue'
+import { visitasService, processoService } from '@/service/index'
 
 const router = useRouter()
 
-const visitas = ref([
-  { id: 1, data: '14/05/2026', diaSemana: 'Quinta', horario: '14h às 16h', adotante: 'Maria Silva', processo: '2026-001847', tipo: '1ª visita de aproximação', status: 'agendada', podeRegistrarRelatorio: false },
-  { id: 2, data: '17/05/2026', diaSemana: 'Domingo', horario: '10h às 12h', adotante: 'João e Ana Lima', processo: '2026-001902', tipo: '3ª visita de aproximação', status: 'agendada', podeRegistrarRelatorio: false },
-  { id: 3, data: '08/05/2026', diaSemana: 'Quinta', horario: '14h às 16h', adotante: 'Carla Souza', processo: '2025-003012', tipo: 'Acompanhamento de convivência', status: 'realizada', podeRegistrarRelatorio: true },
-  { id: 4, data: '05/05/2026', diaSemana: 'Segunda', horario: '15h às 17h', adotante: 'Maria Silva', processo: '2026-001847', tipo: 'Visita preliminar', status: 'realizada', podeRegistrarRelatorio: false }
-])
-
-const adotantesElegiveis = [
-  { processo: '2026-001847', nome: 'Maria Silva' },
-  { processo: '2026-001902', nome: 'João e Ana Lima' },
-  { processo: '2025-003012', nome: 'Carla Souza' },
-  { processo: '2026-002104', nome: 'Roberto e Helena Cunha' }
-]
+const visitas = ref([])
+const carregando = ref(true)
+const erroGeral = ref('')
 
 const proximas = ref([])
 const realizadas = ref([])
+
+const MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ']
+const DIAS_SEMANA = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
+
+const normalizar = (v) => ({
+  id: v.id,
+  data: v.data_visita?.split('-').reverse().join('/') ?? '',
+  diaSemana: v.data_visita ? DIAS_SEMANA[new Date(v.data_visita + 'T00:00:00').getDay()] : '',
+  horario: `${v.hora_inicio?.slice(0,5) ?? ''} às ${v.hora_fim?.slice(0,5) ?? ''}`,
+  adotante: v.processo?.adotante?.nome ?? '—',
+  processo: v.processo?.numero_processo ?? '—',
+  tipo: v.tipo_visita,
+  status: v.status_visita,
+  podeRegistrarRelatorio: v.status_relatorio === 'pendente' && v.status_visita === 'realizada'
+})
 
 const atualizarListas = () => {
   proximas.value = visitas.value.filter(v => v.status === 'agendada')
   realizadas.value = visitas.value.filter(v => v.status === 'realizada')
 }
-atualizarListas()
+
+const carregarVisitas = async () => {
+  carregando.value = true
+  erroGeral.value = ''
+  try {
+    const dados = await visitasService.listar()
+    visitas.value = dados.map(normalizar)
+    atualizarListas()
+  } catch (e) {
+    erroGeral.value = e.message
+  } finally {
+    carregando.value = false
+  }
+}
+
+onMounted(carregarVisitas)
 
 // Modal Nova visita
 const modalNova = ref(false)
-const formNova = ref({ processo: '', tipo: '', data: '', horaInicio: '', horaFim: '' })
+const formNova = ref({ cpf: '', processo_id: '', adotanteNome: '', tipo: '1ª visita de aproximação', data: '', horaInicio: '', horaFim: '' })
+const salvando = ref(false)
+const buscandoCpf = ref(false)
+const erroCpf = ref('')
+const erroModal = ref('')
 
 const abrirNovaVisita = () => {
-  formNova.value = { processo: '', tipo: '1ª visita de aproximação', data: '', horaInicio: '', horaFim: '' }
+  formNova.value = { cpf: '', processo_id: '', adotanteNome: '', tipo: '1ª visita de aproximação', data: '', horaInicio: '', horaFim: '' }
+  erroModal.value = ''
+  erroCpf.value = ''
   modalNova.value = true
 }
 
-const salvarNova = () => {
-  if (!formNova.value.processo || !formNova.value.data || !formNova.value.horaInicio) {
-    alert('Preencha processo, data e horário.')
-    return
+const buscarProcessoPorCpf = async () => {
+  const cpf = formNova.value.cpf.trim()
+  if (!cpf) return
+  buscandoCpf.value = true
+  erroCpf.value = ''
+  formNova.value.processo_id = ''
+  formNova.value.adotanteNome = ''
+  try {
+    const proc = await processoService.buscarPorCpf(cpf)
+    formNova.value.processo_id = proc.id
+    formNova.value.adotanteNome = proc.adotante?.nome ?? ''
+  } catch (e) {
+    erroCpf.value = e.message || 'Nenhum processo encontrado para este CPF.'
+  } finally {
+    buscandoCpf.value = false
   }
-  const adotante = adotantesElegiveis.find(a => a.processo === formNova.value.processo)
-  const dataFormatada = formNova.value.data.split('-').reverse().join('/')
-  const novoId = Math.max(...visitas.value.map(v => v.id)) + 1
-  visitas.value.push({
-    id: novoId,
-    data: dataFormatada,
-    diaSemana: obterDiaSemana(formNova.value.data),
-    horario: `${formNova.value.horaInicio} às ${formNova.value.horaFim || '—'}`,
-    adotante: adotante?.nome || '',
-    processo: formNova.value.processo,
-    tipo: formNova.value.tipo,
-    status: 'agendada',
-    podeRegistrarRelatorio: false
-  })
-  atualizarListas()
-  modalNova.value = false
-  mostrarToast('Visita agendada')
 }
 
-const obterDiaSemana = (iso) => {
-  if (!iso) return ''
-  const dias = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-  return dias[new Date(iso + 'T00:00:00').getDay()]
+const salvarNova = async () => {
+  if (!formNova.value.processo_id) {
+    erroModal.value = 'Busque um adotante pelo CPF antes de agendar.'
+    return
+  }
+  if (!formNova.value.data || !formNova.value.horaInicio) {
+    erroModal.value = 'Preencha data e horário de início.'
+    return
+  }
+  salvando.value = true
+  erroModal.value = ''
+  try {
+    await visitasService.criar({
+      processo_id: formNova.value.processo_id,
+      tipo_visita: formNova.value.tipo,
+      data_visita: formNova.value.data,
+      hora_inicio: formNova.value.horaInicio,
+      hora_fim: formNova.value.horaFim || formNova.value.horaInicio
+    })
+    await carregarVisitas()
+    modalNova.value = false
+    mostrarToast('Visita agendada com sucesso')
+  } catch (e) {
+    erroModal.value = e.message
+  } finally {
+    salvando.value = false
+  }
 }
 
 // Modal Reagendar
 const modalReagendar = ref(false)
 const visitaReagendando = ref(null)
-const formReagendar = ref({ data: '', horaInicio: '', horaFim: '', motivo: '' })
+const formReagendar = ref({ data: '', horaInicio: '', horaFim: '' })
+const salvandoReagendar = ref(false)
+const erroReagendar = ref('')
 
 const abrirReagendar = (visita) => {
   visitaReagendando.value = visita
-  formReagendar.value = { data: '', horaInicio: '', horaFim: '', motivo: '' }
+  formReagendar.value = { data: '', horaInicio: '', horaFim: '' }
+  erroReagendar.value = ''
   modalReagendar.value = true
 }
 
-const confirmarReagendamento = () => {
+const confirmarReagendamento = async () => {
   if (!formReagendar.value.data || !formReagendar.value.horaInicio) {
-    alert('Informe a nova data e horário.')
+    erroReagendar.value = 'Informe a nova data e horário de início.'
     return
   }
-  const idx = visitas.value.findIndex(v => v.id === visitaReagendando.value.id)
-  if (idx >= 0) {
-    visitas.value[idx].data = formReagendar.value.data.split('-').reverse().join('/')
-    visitas.value[idx].diaSemana = obterDiaSemana(formReagendar.value.data)
-    visitas.value[idx].horario = `${formReagendar.value.horaInicio} às ${formReagendar.value.horaFim || '—'}`
+  salvandoReagendar.value = true
+  erroReagendar.value = ''
+  try {
+    await visitasService.atualizar(visitaReagendando.value.id, {
+      data_visita: formReagendar.value.data,
+      hora_inicio: formReagendar.value.horaInicio,
+      hora_fim: formReagendar.value.horaFim || formReagendar.value.horaInicio,
+      status_relatorio: 'pendente'
+    })
+    await carregarVisitas()
+    modalReagendar.value = false
+    mostrarToast('Visita reagendada com sucesso')
+  } catch (e) {
+    erroReagendar.value = e.message
+  } finally {
+    salvandoReagendar.value = false
   }
-  atualizarListas()
-  modalReagendar.value = false
-  mostrarToast('Visita reagendada')
+}
+
+// Concluir visita (marcar como realizada para poder fazer o relatório)
+const concluindo = ref(null)
+
+const concluirVisita = async (v) => {
+  concluindo.value = v.id
+  try {
+    await visitasService.atualizar(v.id, {
+      status_visita: 'realizada',
+      status_relatorio: 'pendente',
+    })
+    await carregarVisitas()
+    mostrarToast('Visita marcada como concluída')
+  } catch (e) {
+    mostrarToast('Erro ao concluir visita: ' + e.message)
+  } finally {
+    concluindo.value = null
+  }
 }
 
 // Toast
@@ -114,11 +188,14 @@ const irParaRelatorio = (v) => {
           <h1>Agenda de visitas</h1>
           <p class="subtitulo">{{ proximas.length }} próximas · {{ realizadas.length }} realizadas</p>
         </div>
-        <button class="btn btn-primary" @click="abrirNovaVisita">
+        <button class="btn btn-primary" @click="abrirNovaVisita" :disabled="carregando">
           <i class="ti ti-calendar-plus"></i>
           Nova visita
         </button>
       </div>
+
+      <p v-if="erroGeral" class="msg-erro"><i class="ti ti-alert-circle"></i> {{ erroGeral }}</p>
+      <p v-if="carregando" class="carregando">Carregando agenda...</p>
 
       <p class="bloco-titulo">PRÓXIMAS VISITAS</p>
       <div class="lista">
@@ -139,10 +216,18 @@ const irParaRelatorio = (v) => {
               <span><i class="ti ti-file-text"></i> Processo {{ v.processo }}</span>
             </div>
           </div>
-          <div class="acoes-card">
+          <div class="acoes-card acoes-card-duplo">
             <button class="btn btn-ghost btn-pequeno" @click="abrirReagendar(v)">
               <i class="ti ti-edit"></i>
               Reagendar
+            </button>
+            <button
+              class="btn btn-primary btn-pequeno"
+              :disabled="concluindo === v.id"
+              @click="concluirVisita(v)"
+            >
+              <i class="ti ti-check"></i>
+              {{ concluindo === v.id ? 'Salvando...' : 'Concluir' }}
             </button>
           </div>
         </div>
@@ -190,13 +275,24 @@ const irParaRelatorio = (v) => {
         </div>
         <div class="modal-body">
           <div class="campo">
-            <label>Adotante (processo)</label>
-            <select v-model="formNova.processo">
-              <option value="">Selecione...</option>
-              <option v-for="a in adotantesElegiveis" :key="a.processo" :value="a.processo">
-                {{ a.nome }} — {{ a.processo }}
-              </option>
-            </select>
+            <label>CPF do adotante</label>
+            <div class="cpf-busca">
+              <input
+                v-model="formNova.cpf"
+                type="text"
+                placeholder="000.000.000-00"
+                @blur="buscarProcessoPorCpf"
+                @keydown.enter.prevent="buscarProcessoPorCpf"
+              />
+              <button class="btn btn-ghost btn-cpf" :disabled="buscandoCpf || !formNova.cpf.trim()" @click="buscarProcessoPorCpf">
+                <i v-if="buscandoCpf" class="ti ti-loader-2 spin"></i>
+                <i v-else class="ti ti-search"></i>
+              </button>
+            </div>
+            <p v-if="erroCpf" class="campo-erro">{{ erroCpf }}</p>
+            <p v-if="formNova.adotanteNome" class="campo-ok">
+              <i class="ti ti-circle-check"></i> {{ formNova.adotanteNome }}
+            </p>
           </div>
           <div class="campo">
             <label>Tipo de visita</label>
@@ -224,8 +320,11 @@ const irParaRelatorio = (v) => {
           </div>
         </div>
         <div class="modal-footer">
+          <p v-if="erroModal" class="erro-modal"><i class="ti ti-alert-circle"></i> {{ erroModal }}</p>
           <button class="btn btn-ghost" @click="modalNova = false">Cancelar</button>
-          <button class="btn btn-primary" @click="salvarNova">Agendar visita</button>
+          <button class="btn btn-primary" @click="salvarNova" :disabled="salvando">
+            {{ salvando ? 'Salvando...' : 'Agendar visita' }}
+          </button>
         </div>
       </div>
     </div>
@@ -266,8 +365,11 @@ const irParaRelatorio = (v) => {
           </div>
         </div>
         <div class="modal-footer">
+          <p v-if="erroReagendar" class="erro-modal"><i class="ti ti-alert-circle"></i> {{ erroReagendar }}</p>
           <button class="btn btn-ghost" @click="modalReagendar = false">Cancelar</button>
-          <button class="btn btn-primary" @click="confirmarReagendamento">Confirmar reagendamento</button>
+          <button class="btn btn-primary" @click="confirmarReagendamento" :disabled="salvandoReagendar">
+            {{ salvandoReagendar ? 'Salvando...' : 'Confirmar reagendamento' }}
+          </button>
         </div>
       </div>
     </div>
@@ -345,6 +447,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 .meta .ti { font-size: 13px; margin-right: 4px; vertical-align: -1px; }
 
 .acoes-card { flex-shrink: 0; }
+.acoes-card-duplo { display: flex; gap: 8px; }
 .btn-pequeno { font-size: 12px; padding: 7px 13px; }
 
 /* modal */
@@ -431,6 +534,52 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 }
 .campo textarea { resize: vertical; min-height: 70px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.campo-dica { font-size: 11px; color: var(--color-text-tertiary); margin-top: 4px; display: block; }
+
+.cpf-busca {
+  display: flex;
+  gap: 8px;
+}
+.cpf-busca input { flex: 1; }
+.btn-cpf {
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+.campo-erro {
+  font-size: 12px;
+  color: #dc2626;
+  margin-top: 6px;
+}
+.campo-ok {
+  font-size: 12px;
+  color: var(--color-success);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 0.8s linear infinite; }
+.msg-erro, .carregando {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.msg-erro { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.carregando { color: var(--color-text-secondary); }
+.erro-modal {
+  flex: 1;
+  font-size: 12px;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* toast */
 .toast {

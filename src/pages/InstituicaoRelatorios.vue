@@ -1,100 +1,60 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import InstituicaoLayout from '@/components/InstituicaoLayout.vue'
+import { visitasService } from '@/service/index'
 
 const router = useRouter()
 const busca = ref('')
 const filtroAtivo = ref('todos')
+const carregando = ref(true)
+const erro = ref('')
 
-const relatorios = [
-  {
-    id: 1,
-    adotante: 'Maria Silva',
-    processo: '2026-001847',
-    visita: '1ª de aproximação',
-    dataVisita: '05/05/2026',
-    enviadoEm: '06/05/2026',
-    autor: 'Roberta Pessoa',
-    recomendacao: 'prosseguir',
-    status: 'enviado'
-  },
-  {
-    id: 2,
-    adotante: 'Carla Souza',
-    processo: '2025-003012',
-    visita: 'Acompanhamento de convivência',
-    dataVisita: '28/04/2026',
-    enviadoEm: '29/04/2026',
-    autor: 'Roberta Pessoa',
-    recomendacao: 'prosseguir',
-    status: 'enviado'
-  },
-  {
-    id: 3,
-    adotante: 'João e Ana Lima',
-    processo: '2026-001902',
-    visita: '2ª de aproximação',
-    dataVisita: '20/04/2026',
-    enviadoEm: '21/04/2026',
-    autor: 'Pedro Almeida',
-    recomendacao: 'acompanhamento',
-    status: 'enviado'
-  },
-  {
-    id: 4,
-    adotante: 'Maria Silva',
-    processo: '2026-001847',
-    visita: 'Visita preliminar',
-    dataVisita: '05/05/2026',
-    enviadoEm: null,
-    autor: '—',
-    recomendacao: null,
-    status: 'rascunho'
-  },
-  {
-    id: 5,
-    adotante: 'Carla Souza',
-    processo: '2025-003012',
-    visita: '4ª de aproximação',
-    dataVisita: '10/04/2026',
-    enviadoEm: '11/04/2026',
-    autor: 'Roberta Pessoa',
-    recomendacao: 'prosseguir',
-    status: 'enviado'
+const visitas = ref([])
+
+onMounted(async () => {
+  try {
+    const todas = await visitasService.listar()
+    visitas.value = todas.filter(v => v.status_relatorio !== 'pendente')
+  } catch (e) {
+    erro.value = e.message
+  } finally {
+    carregando.value = false
   }
-]
+})
 
 const recomendacaoLabels = {
-  prosseguir: { label: 'Prosseguir', cor: 'verde' },
-  acompanhamento: { label: 'Acompanhamento', cor: 'ambar' },
-  interromper: { label: 'Interromper', cor: 'vermelho' }
+  'Prosseguir para próxima visita': { label: 'Prosseguir', cor: 'verde' },
+  'Solicitar acompanhamento adicional da equipe técnica': { label: 'Acompanhamento', cor: 'ambar' },
+  'Sugerir interrupção do estágio de aproximação': { label: 'Interromper', cor: 'vermelho' },
+}
+
+const formatarData = (str) => {
+  if (!str) return '—'
+  const [ano, mes, dia] = str.split('-')
+  return `${dia}/${mes}/${ano}`
 }
 
 const filtrados = computed(() => {
-  let lista = relatorios
+  let lista = visitas.value
   if (filtroAtivo.value !== 'todos') {
-    lista = lista.filter(r => r.status === filtroAtivo.value)
+    lista = lista.filter(v => v.status_relatorio === filtroAtivo.value)
   }
   if (busca.value) {
     const q = busca.value.toLowerCase()
-    lista = lista.filter(r =>
-      r.adotante.toLowerCase().includes(q) ||
-      r.processo.includes(q)
+    lista = lista.filter(v =>
+      v.processo?.adotante?.nome?.toLowerCase().includes(q) ||
+      v.processo?.numero_processo?.includes(q)
     )
   }
   return lista
 })
 
-const enviados = computed(() => relatorios.filter(r => r.status === 'enviado').length)
-const rascunhos = computed(() => relatorios.filter(r => r.status === 'rascunho').length)
+const totalEnviados = computed(() => visitas.value.filter(v => v.status_relatorio === 'enviado').length)
+const totalRascunhos = computed(() => visitas.value.filter(v => v.status_relatorio === 'rascunho').length)
 
-const abrirRelatorio = (rel) => {
-  if (rel.status === 'rascunho') {
-    router.push(`/instituicao/visitas/${rel.id}/relatorio`)
-  } else {
-    alert(`Visualizando relatório #${rel.id} — ${rel.adotante}`)
-  }
+const abrirRelatorio = (v) => {
+  router.push(`/instituicao/visitas/${v.id}/relatorio`)
 }
 </script>
 
@@ -104,81 +64,77 @@ const abrirRelatorio = (rel) => {
       <div class="cabecalho">
         <div>
           <h1>Relatórios</h1>
-          <p class="subtitulo">{{ enviados }} enviados · {{ rascunhos }} em rascunho</p>
-        </div>
-        <button class="btn btn-ghost">
-          <i class="ti ti-download"></i>
-          Exportar tudo
-        </button>
-      </div>
-
-      <!-- Busca e filtros -->
-      <div class="filtros">
-        <div class="campo-busca">
-          <i class="ti ti-search"></i>
-          <input v-model="busca" placeholder="Buscar por adotante ou processo..." />
-        </div>
-        <div class="chips">
-          <button :class="['chip', { ativo: filtroAtivo === 'todos' }]" @click="filtroAtivo = 'todos'">
-            Todos
-          </button>
-          <button :class="['chip', { ativo: filtroAtivo === 'enviado' }]" @click="filtroAtivo = 'enviado'">
-            Enviados
-          </button>
-          <button :class="['chip', { ativo: filtroAtivo === 'rascunho' }]" @click="filtroAtivo = 'rascunho'">
-            Rascunhos
-          </button>
+          <p v-if="!carregando" class="subtitulo">{{ totalEnviados }} enviados · {{ totalRascunhos }} em rascunho</p>
         </div>
       </div>
 
-      <!-- Tabela -->
-      <div class="tabela">
-        <div class="thead">
-          <div>Adotante</div>
-          <div>Visita</div>
-          <div>Realizada em</div>
-          <div>Enviado em</div>
-          <div>Recomendação</div>
-          <div>Status</div>
-        </div>
-        <div
-          v-for="rel in filtrados"
-          :key="rel.id"
-          class="trow"
-          @click="abrirRelatorio(rel)"
-        >
-          <div class="td-adotante">
-            <p class="nome">{{ rel.adotante }}</p>
-            <p class="ref">{{ rel.processo }}</p>
+      <p v-if="carregando" class="msg-status">Carregando relatórios...</p>
+      <p v-if="erro" class="msg-status erro"><i class="ti ti-alert-circle"></i> {{ erro }}</p>
+
+      <template v-if="!carregando && !erro">
+        <!-- Busca e filtros -->
+        <div class="filtros">
+          <div class="campo-busca">
+            <i class="ti ti-search"></i>
+            <input v-model="busca" placeholder="Buscar por adotante ou processo..." />
           </div>
-          <div class="td-meta">{{ rel.visita }}</div>
-          <div class="td-meta">{{ rel.dataVisita }}</div>
-          <div class="td-meta">{{ rel.enviadoEm || '—' }}</div>
-          <div>
-            <span v-if="rel.recomendacao" :class="['recomendacao-tag', `rec-${recomendacaoLabels[rel.recomendacao].cor}`]">
-              {{ recomendacaoLabels[rel.recomendacao].label }}
-            </span>
-            <span v-else class="td-meta">—</span>
-          </div>
-          <div>
-            <span :class="['status-tag', `st-${rel.status}`]">
-              {{ rel.status === 'enviado' ? 'Enviado' : 'Rascunho' }}
-            </span>
+          <div class="chips">
+            <button :class="['chip', { ativo: filtroAtivo === 'todos' }]" @click="filtroAtivo = 'todos'">Todos</button>
+            <button :class="['chip', { ativo: filtroAtivo === 'enviado' }]" @click="filtroAtivo = 'enviado'">Enviados</button>
+            <button :class="['chip', { ativo: filtroAtivo === 'rascunho' }]" @click="filtroAtivo = 'rascunho'">Rascunhos</button>
           </div>
         </div>
 
-        <div v-if="filtrados.length === 0" class="vazio">
-          Nenhum relatório encontrado.
-        </div>
-      </div>
+        <!-- Tabela -->
+        <div class="tabela">
+          <div class="thead">
+            <div>Adotante</div>
+            <div>Tipo de visita</div>
+            <div>Realizada em</div>
+            <div>Recomendação</div>
+            <div>Status</div>
+          </div>
 
-      <!-- Aviso -->
-      <div class="aviso">
-        <i class="ti ti-lock"></i>
-        <p>
-          Os relatórios são confidenciais e visíveis apenas para a Vara da Infância e para a equipe técnica desta instituição.
-        </p>
-      </div>
+          <div
+            v-for="v in filtrados"
+            :key="v.id"
+            class="trow"
+            @click="abrirRelatorio(v)"
+          >
+            <div class="td-adotante">
+              <p class="nome">{{ v.processo?.adotante?.nome ?? '—' }}</p>
+              <p class="ref">{{ v.processo?.numero_processo ?? '—' }}</p>
+            </div>
+            <div class="td-meta">{{ v.tipo_visita ?? '—' }}</div>
+            <div class="td-meta">{{ formatarData(v.data_visita) }}</div>
+            <div>
+              <span
+                v-if="v.recomendacao_vara && recomendacaoLabels[v.recomendacao_vara]"
+                :class="['recomendacao-tag', `rec-${recomendacaoLabels[v.recomendacao_vara].cor}`]"
+              >
+                {{ recomendacaoLabels[v.recomendacao_vara].label }}
+              </span>
+              <span v-else class="td-meta">—</span>
+            </div>
+            <div>
+              <span :class="['status-tag', `st-${v.status_relatorio}`]">
+                {{ v.status_relatorio === 'enviado' ? 'Enviado' : 'Rascunho' }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="filtrados.length === 0" class="vazio">
+            <i class="ti ti-file-off"></i>
+            <p>Nenhum relatório encontrado.</p>
+          </div>
+        </div>
+
+        <!-- Aviso -->
+        <div class="aviso">
+          <i class="ti ti-lock"></i>
+          <p>Os relatórios são confidenciais e visíveis apenas para a Vara da Infância e para a equipe técnica desta instituição.</p>
+        </div>
+      </template>
     </div>
   </InstituicaoLayout>
 </template>
@@ -225,13 +181,8 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   background: var(--color-bg);
   color: var(--color-text-secondary);
 }
-.chip.ativo {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
-}
+.chip.ativo { background: var(--color-primary); color: white; border-color: var(--color-primary); }
 
-/* tabela */
 .tabela {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -241,7 +192,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 }
 .thead {
   display: grid;
-  grid-template-columns: 1.5fr 1.6fr 1fr 1fr 1.2fr 1fr;
+  grid-template-columns: 1.8fr 1.6fr 1fr 1.2fr 1fr;
   gap: 14px;
   padding: 12px 18px;
   background: var(--color-bg-soft);
@@ -254,7 +205,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 }
 .trow {
   display: grid;
-  grid-template-columns: 1.5fr 1.6fr 1fr 1fr 1.2fr 1fr;
+  grid-template-columns: 1.8fr 1.6fr 1fr 1.2fr 1fr;
   gap: 14px;
   padding: 14px 18px;
   border-bottom: 1px solid var(--color-border);
@@ -292,11 +243,16 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 .st-rascunho { background: var(--color-bg-soft); color: var(--color-text-secondary); }
 
 .vazio {
-  padding: 36px;
+  padding: 48px;
   text-align: center;
   font-size: 13px;
   color: var(--color-text-tertiary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
+.vazio .ti { font-size: 32px; }
 
 .aviso {
   display: flex;
@@ -308,4 +264,16 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 }
 .aviso .ti { font-size: 18px; color: var(--color-warning); flex-shrink: 0; }
 .aviso p { font-size: 12px; color: var(--color-warning); line-height: 1.5; }
+
+.msg-status {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+}
+.msg-status.erro { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 </style>

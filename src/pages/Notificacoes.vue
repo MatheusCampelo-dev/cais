@@ -1,71 +1,14 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import PainelLayout from '@/components/PainelLayout.vue'
+import { notificacoesService } from '@/service/index'
 
+const router = useRouter()
+
+const notificacoes = ref([])
+const carregando = ref(true)
 const filtroAtivo = ref('todas')
-
-const notificacoes = ref([
-  {
-    id: 1,
-    titulo: 'Visita agendada para 14/05',
-    mensagem: 'A instituição Lar Pequeno Príncipe confirmou sua primeira visita de aproximação para 14/05/2026, das 14h às 16h.',
-    quando: 'Há 2 horas',
-    origem: 'Lar Pequeno Príncipe',
-    tipo: 'instituicao',
-    icone: 'ti-calendar-event',
-    cor: 'azul',
-    lida: false,
-    grupo: 'hoje'
-  },
-  {
-    id: 2,
-    titulo: 'Documento aprovado',
-    mensagem: 'Seu atestado de sanidade mental foi marcado como entregue pela Vara da Infância.',
-    quando: 'Há 5 horas',
-    origem: 'Vara da Infância — Recife',
-    tipo: 'vara',
-    icone: 'ti-circle-check',
-    cor: 'verde',
-    lida: false,
-    grupo: 'hoje'
-  },
-  {
-    id: 3,
-    titulo: 'Documento pendente',
-    mensagem: 'Falta entregar o laudo psicológico. Compareça à vara com o original em até 30 dias.',
-    quando: '3 dias atrás',
-    origem: 'Vara da Infância — Recife',
-    tipo: 'vara',
-    icone: 'ti-alert-triangle',
-    cor: 'amarelo',
-    lida: false,
-    grupo: 'semana'
-  },
-  {
-    id: 4,
-    titulo: 'Curso de preparação confirmado',
-    mensagem: 'Você foi inscrita na turma de junho/2025 do curso obrigatório.',
-    quando: '5 dias atrás',
-    origem: 'Vara da Infância — Recife',
-    tipo: 'vara',
-    icone: 'ti-school',
-    cor: 'azul',
-    lida: true,
-    grupo: 'semana'
-  },
-  {
-    id: 5,
-    titulo: 'Habilitação aprovada',
-    mensagem: 'Seu processo de habilitação foi aprovado. Você agora está na fila de espera.',
-    quando: '15/09/2025',
-    origem: 'Vara da Infância — Recife',
-    tipo: 'vara',
-    icone: 'ti-circle-check',
-    cor: 'verde',
-    lida: true,
-    grupo: 'semana'
-  }
-])
 
 const naoLidas = computed(() => notificacoes.value.filter(n => !n.lida).length)
 
@@ -75,29 +18,38 @@ const filtradas = computed(() => {
   return notificacoes.value.filter(n => n.tipo === filtroAtivo.value)
 })
 
-const grupos = computed(() => {
-  const hoje = filtradas.value.filter(n => n.grupo === 'hoje')
-  const semana = filtradas.value.filter(n => n.grupo === 'semana')
-  return [
-    { titulo: 'HOJE', itens: hoje },
-    { titulo: 'ESTA SEMANA', itens: semana }
-  ].filter(g => g.itens.length > 0)
-})
-
 const marcarTodasComoLidas = () => {
-  notificacoes.value.forEach(n => n.lida = true)
+  notificacoes.value.forEach(n => (n.lida = true))
 }
+
+onMounted(async () => {
+  try {
+    notificacoes.value = await notificacoesService.listar()
+  } catch {
+    notificacoes.value = []
+  } finally {
+    carregando.value = false
+  }
+})
 </script>
 
 <template>
   <PainelLayout>
     <div class="conteudo">
+      <button class="voltar" @click="router.push('/painel')" type="button">
+        <i class="ti ti-arrow-left"></i>
+        Voltar ao painel
+      </button>
+
       <div class="cabecalho">
         <div>
           <h1>Notificações</h1>
-          <p class="subtitulo">{{ naoLidas }} não lidas · {{ notificacoes.length }} no total</p>
+          <p class="subtitulo">
+            <template v-if="carregando">Carregando...</template>
+            <template v-else>{{ naoLidas }} não lida{{ naoLidas !== 1 ? 's' : '' }} · {{ notificacoes.length }} no total</template>
+          </p>
         </div>
-        <button class="btn btn-ghost" @click="marcarTodasComoLidas" :disabled="naoLidas === 0">
+        <button class="btn btn-ghost" @click="marcarTodasComoLidas" :disabled="naoLidas === 0 || carregando">
           <i class="ti ti-checks"></i>
           Marcar todas como lidas
         </button>
@@ -105,26 +57,30 @@ const marcarTodasComoLidas = () => {
 
       <!-- Filtros -->
       <div class="filtros">
-        <button :class="['chip', { ativo: filtroAtivo === 'todas' }]" @click="filtroAtivo = 'todas'">
-          Todas
-        </button>
-        <button :class="['chip', { ativo: filtroAtivo === 'nao-lidas' }]" @click="filtroAtivo = 'nao-lidas'">
-          Não lidas
-        </button>
-        <button :class="['chip', { ativo: filtroAtivo === 'vara' }]" @click="filtroAtivo = 'vara'">
-          Da Vara
-        </button>
-        <button :class="['chip', { ativo: filtroAtivo === 'instituicao' }]" @click="filtroAtivo = 'instituicao'">
-          Da Instituição
-        </button>
+        <button :class="['chip', { ativo: filtroAtivo === 'todas' }]" @click="filtroAtivo = 'todas'">Todas</button>
+        <button :class="['chip', { ativo: filtroAtivo === 'nao-lidas' }]" @click="filtroAtivo = 'nao-lidas'">Não lidas</button>
+        <button :class="['chip', { ativo: filtroAtivo === 'vara' }]" @click="filtroAtivo = 'vara'">Da Vara</button>
+        <button :class="['chip', { ativo: filtroAtivo === 'instituicao' }]" @click="filtroAtivo = 'instituicao'">Da Instituição</button>
       </div>
 
-      <!-- Grupos -->
-      <div v-for="grupo in grupos" :key="grupo.titulo" class="grupo">
-        <p class="grupo-titulo">{{ grupo.titulo }}</p>
-        <div class="lista">
+      <div v-if="carregando" class="msg-estado">Carregando notificações...</div>
+
+      <template v-else>
+        <div v-if="filtradas.length === 0" class="vazio">
+          <i class="ti ti-inbox"></i>
+          <p>
+            <template v-if="notificacoes.length === 0">
+              Nenhuma notificação ainda. Elas aparecerão conforme seu processo avançar.
+            </template>
+            <template v-else>
+              Nenhuma notificação com este filtro.
+            </template>
+          </p>
+        </div>
+
+        <div v-else class="lista">
           <div
-            v-for="n in grupo.itens"
+            v-for="n in filtradas"
             :key="n.id"
             :class="['notif-card', { nao_lida: !n.lida }]"
           >
@@ -135,22 +91,29 @@ const marcarTodasComoLidas = () => {
             <div class="notif-info">
               <p class="notif-titulo">{{ n.titulo }}</p>
               <p class="notif-mensagem">{{ n.mensagem }}</p>
-              <p class="notif-meta">{{ n.quando }} · {{ n.origem }}</p>
+              <p class="notif-meta">{{ n.quando }}</p>
             </div>
           </div>
         </div>
-      </div>
-
-      <div v-if="filtradas.length === 0" class="vazio">
-        <i class="ti ti-inbox"></i>
-        <p>Nenhuma notificação por aqui.</p>
-      </div>
+      </template>
     </div>
   </PainelLayout>
 </template>
 
 <style scoped>
 .conteudo { max-width: 880px; }
+
+.voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  padding: 0;
+}
+.voltar:hover { text-decoration: underline; }
 
 .cabecalho {
   display: flex;
@@ -160,12 +123,14 @@ const marcarTodasComoLidas = () => {
   margin-bottom: 20px;
 }
 h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
-.subtitulo {
+.subtitulo { font-size: 14px; color: var(--color-text-secondary); }
+
+.msg-estado {
   font-size: 14px;
   color: var(--color-text-secondary);
+  padding: 16px 0;
 }
 
-/* filtros */
 .filtros {
   display: flex;
   gap: 8px;
@@ -189,16 +154,6 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   border-color: var(--color-primary);
 }
 
-/* grupos */
-.grupo { margin-bottom: 24px; }
-.grupo-titulo {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-tertiary);
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-}
-
 .lista {
   display: flex;
   flex-direction: column;
@@ -216,9 +171,7 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
   background: var(--color-bg);
   position: relative;
 }
-.notif-card.nao_lida {
-  background: var(--color-primary-soft);
-}
+.notif-card.nao_lida { background: var(--color-primary-soft); }
 
 .ponto-nao-lido {
   position: absolute;
@@ -247,28 +200,21 @@ h1 { font-size: 28px; font-weight: 600; margin-bottom: 4px; }
 .cor-amarelo { background: var(--color-warning-soft); color: var(--color-warning); }
 
 .notif-info { flex: 1; min-width: 0; }
-.notif-titulo {
-  font-size: 14px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
+.notif-titulo { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
 .notif-mensagem {
   font-size: 13px;
   color: var(--color-text-secondary);
   line-height: 1.6;
   margin-bottom: 8px;
 }
-.notif-meta {
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-}
+.notif-meta { font-size: 11px; color: var(--color-text-tertiary); }
 
 .vazio {
   text-align: center;
   padding: 48px 24px;
   color: var(--color-text-tertiary);
 }
-.vazio .ti { font-size: 36px; margin-bottom: 8px; }
+.vazio .ti { font-size: 36px; margin-bottom: 8px; display: block; }
 .vazio p { font-size: 14px; }
 
 button:disabled { opacity: 0.5; cursor: not-allowed; }

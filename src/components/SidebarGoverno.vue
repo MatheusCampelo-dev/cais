@@ -1,8 +1,12 @@
 <script setup>
 import { RouterLink, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import LogoCais from '@/assets/logo/LogoCais.vue'
+import { useUserStore } from '@/store/user'
 
 const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
 
 const links = [
   { to: '/governo', label: 'Painel', icon: 'ti-layout-dashboard', name: 'governo-painel' },
@@ -11,6 +15,11 @@ const links = [
 ]
 
 const isActive = (name) => route.name === name
+
+const sair = () => {
+  userStore.logout()
+  router.push('/')
+}
 </script>
 
 <template>
@@ -27,7 +36,9 @@ const isActive = (name) => route.name === name
       <i class="ti ti-shield-check brand-icon"></i>
       <div>
         <p class="brand-label">Painel do Governo</p>
-        <p class="brand-sub">Vara da Infância — Recife</p>
+        <p class="brand-sub">
+          {{ userStore.nome }}<template v-if="userStore.comarca"> — {{ userStore.comarca }}</template>
+        </p>
       </div>
     </div>
 
@@ -44,11 +55,12 @@ const isActive = (name) => route.name === name
     </nav>
 
     <div class="user-card">
-      <div class="avatar">CS</div>
+      <div class="avatar">{{ userStore.iniciais || 'V' }}</div>
       <div class="user-info">
-        <p class="user-name">Carlos Souza</p>
-        <p class="user-role">Servidor da Vara</p>
+        <p class="user-name">{{ userStore.nome || 'Vara' }}</p>
+        <p class="user-role">Vara da Infância</p>
       </div>
+      <button class="btn-sair" @click="sair" title="Sair"><i class="ti ti-logout"></i></button>
     </div>
   </aside>
 </template>
@@ -140,6 +152,16 @@ const isActive = (name) => route.name === name
   font-size: 13px;
   font-weight: 600;
 }
-.user-name { font-size: 13px; font-weight: 600; }
+.user-name { font-size: 13px; font-weight: 600; flex: 1; }
 .user-role { font-size: 11px; color: var(--color-text-tertiary); }
+.user-info { flex: 1; min-width: 0; }
+.btn-sair {
+  color: var(--color-text-tertiary);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: var(--radius-md);
+}
+.btn-sair:hover { color: var(--color-danger); background: var(--color-danger-soft); }
 </style>

@@ -1,14 +1,18 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import InstituicaoLayout from '@/components/InstituicaoLayout.vue'
+import { instituicaoService } from '@/service/index'
 
-const form = ref({
-  nome: 'Lar Pequeno Príncipe',
-  sobre: 'Instituição mantida pela Secretaria de Assistência Social, em funcionamento desde 1998. A rotina é organizada em torno de atividades escolares pela manhã, oficinas e brincadeiras à tarde, e refeições em conjunto. A equipe é formada por educadores sociais, psicóloga e assistente social.',
-  telefone: '(81) 3344-5566',
-  email: 'contato@pequenoprincipe.org',
-  endereco: 'R. das Flores, 240 — Boa Vista, Recife / PE'
-})
+const form = ref({ nome: '', email: '', sobre: '', telefone: '', endereco: '' })
+const original = ref({})
+
+const carregando = ref(true)
+const salvando = ref(false)
+const erro = ref('')
+const sucesso = ref(false)
+
+const limiteCaracteres = 600
+const caracteresUsados = computed(() => form.value.sobre.length)
 
 const fotos = ref([
   { id: 1, fundo: '#FAEEDA', icone: '#854F0B' },
@@ -16,23 +20,42 @@ const fotos = ref([
   { id: 3, fundo: '#EEEDFE', icone: '#3C3489' }
 ])
 
-const limiteCaracteres = 600
-const caracteresUsados = computed(() => form.value.sobre.length)
+onMounted(async () => {
+  try {
+    const dados = await instituicaoService.perfil()
+    form.value.nome = dados.nome ?? ''
+    form.value.email = dados.email ?? ''
+    original.value = { ...form.value }
+  } catch (e) {
+    erro.value = e.message
+  } finally {
+    carregando.value = false
+  }
+})
 
-const removerFoto = (id) => {
-  fotos.value = fotos.value.filter(f => f.id !== id)
-}
-
-const adicionarFoto = () => {
-  alert('Selecionar arquivo do dispositivo (integração de upload).')
-}
+const removerFoto = (id) => { fotos.value = fotos.value.filter(f => f.id !== id) }
+const adicionarFoto = () => { alert('Upload de foto em breve.') }
 
 const cancelar = () => {
-  alert('Alterações descartadas.')
+  form.value = { ...original.value }
+  erro.value = ''
+  sucesso.value = false
 }
 
-const salvar = () => {
-  alert('Perfil atualizado.')
+const salvar = async () => {
+  salvando.value = true
+  erro.value = ''
+  sucesso.value = false
+  try {
+    await instituicaoService.atualizarPerfil({ nome: form.value.nome, email: form.value.email })
+    original.value = { ...form.value }
+    sucesso.value = true
+    setTimeout(() => { sucesso.value = false }, 3000)
+  } catch (e) {
+    erro.value = e.message
+  } finally {
+    salvando.value = false
+  }
 }
 </script>
 
@@ -99,9 +122,15 @@ const salvar = () => {
         <input v-model="form.endereco" type="text" />
       </div>
 
+      <p v-if="carregando" class="msg-status">Carregando dados...</p>
+      <p v-if="erro" class="msg-status erro"><i class="ti ti-alert-circle"></i> {{ erro }}</p>
+      <p v-if="sucesso" class="msg-status sucesso"><i class="ti ti-circle-check"></i> Perfil atualizado com sucesso!</p>
+
       <div class="acoes-rodape">
-        <button class="btn btn-ghost" @click="cancelar">Cancelar</button>
-        <button class="btn btn-primary" @click="salvar">Salvar alterações</button>
+        <button class="btn btn-ghost" @click="cancelar" :disabled="salvando">Cancelar</button>
+        <button class="btn btn-primary" @click="salvar" :disabled="salvando || carregando">
+          {{ salvando ? 'Salvando...' : 'Salvar alterações' }}
+        </button>
       </div>
     </div>
   </InstituicaoLayout>
@@ -249,6 +278,18 @@ h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
   gap: 12px;
 }
 
+.msg-status {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+}
+.msg-status.erro { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.msg-status.sucesso { background: var(--color-success-soft); color: var(--color-success); }
 .acoes-rodape {
   display: flex;
   gap: 10px;

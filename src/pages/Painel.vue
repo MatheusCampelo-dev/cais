@@ -1,75 +1,122 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PainelLayout from '@/components/PainelLayout.vue'
 import { useUserStore } from '@/store/user'
+import { processoService } from '@/service/index'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-// Array para controlar a linha do tempo dinamicamente
-const etapas = ref([
-  { id: 1, titulo: 'Habilitação', status: 'concluida' },
-  { id: 2, titulo: 'Fila de espera', status: 'atual' },
-  { id: 3, titulo: 'Aproximação', status: 'futura' },
-  { id: 4, titulo: 'Convivência', status: 'futura' },
-  { id: 5, titulo: 'Sentença', status: 'futura' }
-])
+const processo = ref(null)
+const carregando = ref(true)
+const erro = ref('')
+
+const ETAPAS_ORDEM = ['habilitação', 'fila_de_espera', 'aproximação', 'convivência', 'sentença']
+const ETAPAS_LABELS = {
+  'habilitação': 'Habilitação',
+  'fila_de_espera': 'Fila de espera',
+  'aproximação': 'Aproximação',
+  'convivência': 'Convivência',
+  'sentença': 'Sentença'
+}
+
+// Quando não há processo ainda, exibe habilitação como etapa atual (padrão inicial)
+const etapas = computed(() => {
+  const etapaAtual = processo.value?.etapa_atual ?? 'habilitação'
+  const idxAtual = ETAPAS_ORDEM.indexOf(etapaAtual)
+  return ETAPAS_ORDEM.map((etapa, idx) => ({
+    id: idx + 1,
+    titulo: ETAPAS_LABELS[etapa],
+    status: idx < idxAtual ? 'concluida' : idx === idxAtual ? 'atual' : 'futura'
+  }))
+})
+
+// Largura da barra de progresso: proporcional à etapa atual
+const progressoLargura = computed(() => {
+  const idxAtual = ETAPAS_ORDEM.indexOf(processo.value?.etapa_atual ?? 'habilitação')
+  return `${(idxAtual / (ETAPAS_ORDEM.length - 1)) * 100}%`
+})
+
+const dataHabilitacao = computed(() => {
+  if (!processo.value?.data_habilitacao) return null
+  return new Date(processo.value.data_habilitacao + 'T00:00:00').toLocaleDateString('pt-BR')
+})
+
+onMounted(async () => {
+  try {
+    // A API retorna null quando o adotante ainda não tem processo — sem erro
+    processo.value = await processoService.consultar()
+  } catch {
+    // qualquer erro de rede real — ignora e mostra estado inicial
+  } finally {
+    carregando.value = false
+  }
+})
 </script>
 
 <template>
   <PainelLayout>
     <div class="conteudo">
       <h1>Olá, {{ userStore.primeiroNome }}</h1>
-      <p class="subtitulo">Vara da Infância — Recife · Iniciado em 12/03/2026</p>
 
-      <!-- Novo Card da Linha do Tempo -->
-      <div class="card-etapas">
-        <p class="etapa-titulo">ETAPA ATUAL</p>
-        
-        <div class="stepper-wrapper">
-          <!-- Linhas de fundo que conectam os pontos -->
-          <div class="stepper-bg-line"></div>
-          <div class="stepper-progress-line" style="width: 32%;"></div>
+      <div v-if="carregando" class="msg-estado">Carregando seu processo...</div>
 
-          <!-- Passos -->
-          <div class="stepper">
-            <div 
-              v-for="etapa in etapas" 
-              :key="etapa.id" 
-              class="step" 
-              :class="etapa.status"
-            >
-              <div class="step-icon">
-                <i v-if="etapa.status === 'concluida'" class="ti ti-check"></i>
-                <span v-else>{{ etapa.id }}</span>
+      <!-- Processo existe ou não: sempre mostra a linha do tempo -->
+      <template v-else>
+        <p class="subtitulo">
+          <template v-if="processo">
+            {{ processo.comarca }}
+            <span v-if="dataHabilitacao"> · Habilitado em {{ dataHabilitacao }}</span>
+          </template>
+          <template v-else>Seu processo está em análise pela Vara da Infância.</template>
+        </p>
+
+        <!-- Card da Linha do Tempo -->
+        <div class="card-etapas">
+          <p class="etapa-titulo">ETAPA ATUAL</p>
+
+          <div class="stepper-wrapper">
+            <div class="stepper-bg-line"></div>
+            <div class="stepper-progress-line" :style="{ width: progressoLargura }"></div>
+
+            <div class="stepper">
+              <div
+                v-for="etapa in etapas"
+                :key="etapa.id"
+                class="step"
+                :class="etapa.status"
+              >
+                <div class="step-icon">
+                  <i v-if="etapa.status === 'concluida'" class="ti ti-check"></i>
+                  <span v-else>{{ etapa.id }}</span>
+                </div>
+                <span class="step-label">{{ etapa.titulo }}</span>
               </div>
-              <span class="step-label">{{ etapa.titulo }}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Restante do código original -->
-      <div class="card-fila">
-        <p class="card-titulo">POSIÇÃO NA FILA</p>
-        <div class="card-numero">
-          <span class="numero">47</span>
-          <p>de 312 habilitados<br>com perfil similar</p>
+        <!-- Card Posição na Fila (só exibe se estiver em fila_de_espera) -->
+        <div v-if="processo?.etapa_atual === 'fila_de_espera' && processo.posicao_fila" class="card-fila">
+          <p class="card-titulo">POSIÇÃO NA FILA</p>
+          <div class="card-numero">
+            <span class="numero">{{ processo.posicao_fila }}</span>
+            <p>na fila de espera</p>
+          </div>
         </div>
-        <div class="tags-perfil">
-          <span>0 a 3 anos</span>
-          <span>Qualquer etnia</span>
-          <span>Sem irmãos</span>
-        </div>
-      </div>
 
-      <div class="acoes">
-        <button class="btn btn-primary" @click="router.push('/painel/documentos')">
-          <i class="ti ti-file-text"></i>
-          Ver documentos
-        </button>
-      </div>
+        <div class="acoes">
+          <button class="btn btn-primary" @click="router.push('/painel/documentos')">
+            <i class="ti ti-file-text"></i>
+            Ver documentos
+          </button>
+          <button class="btn btn-ghost" @click="router.push('/painel/agendamentos')">
+            <i class="ti ti-calendar"></i>
+            Agendamentos
+          </button>
+        </div>
+      </template>
     </div>
   </PainelLayout>
 </template>
@@ -83,9 +130,19 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   margin-bottom: 24px;
 }
 
-/* --- Estilos da Linha do Tempo (Stepper) --- */
+.msg-estado {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  padding: 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.msg-estado.erro { color: var(--color-danger); }
+
+/* --- Linha do Tempo (Stepper) --- */
 .card-etapas {
-  background: #f8f9f5; /* Cor de fundo creme/acinzentada da imagem */
+  background: #f8f9f5;
   border-radius: var(--radius-lg, 8px);
   padding: 24px 32px;
   margin-bottom: 24px;
@@ -104,10 +161,9 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   padding: 0 10px;
 }
 
-/* Linha cinza base */
 .stepper-bg-line {
   position: absolute;
-  top: 15px; /* Metade da altura do ícone (30px) */
+  top: 15px;
   left: 0;
   right: 0;
   height: 2px;
@@ -115,13 +171,12 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   z-index: 1;
 }
 
-/* Linha azul de progresso */
 .stepper-progress-line {
   position: absolute;
   top: 15px;
   left: 0;
   height: 2px;
-  background-color: var(--color-primary, #2b6cb0); /* Usei um fallback de azul se a variável não existir */
+  background-color: var(--color-primary, #2b6cb0);
   z-index: 2;
   transition: width 0.3s ease;
 }
@@ -139,7 +194,7 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   align-items: center;
   gap: 12px;
   background: transparent;
-  width: 90px; /* Garante que o texto quebre e centralize direitinho */
+  width: 90px;
 }
 
 .step-icon {
@@ -162,26 +217,20 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   text-align: center;
 }
 
-/* Modificadores de Status: Concluída */
 .step.concluida .step-icon {
   border-color: var(--color-primary, #2b6cb0);
-  background-color: #e6f0fa; /* Fundo azul claro para passos concluídos */
+  background-color: #e6f0fa;
   color: var(--color-primary, #2b6cb0);
 }
-.step.concluida .step-label {
-  color: var(--color-primary, #2b6cb0);
-}
+.step.concluida .step-label { color: var(--color-primary, #2b6cb0); }
 
-/* Modificadores de Status: Atual */
 .step.atual .step-icon {
   border-color: var(--color-primary, #2b6cb0);
   color: var(--color-primary, #2b6cb0);
 }
-.step.atual .step-label {
-  color: var(--color-primary, #2b6cb0);
-}
+.step.atual .step-label { color: var(--color-primary, #2b6cb0); }
 
-/* --- Restante dos Estilos Originais --- */
+/* --- Card Fila --- */
 .card-fila {
   background: var(--color-primary-soft, #f0f7ff);
   border: 1px solid var(--color-primary-border, #cce4ff);
@@ -200,7 +249,6 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   display: flex;
   align-items: baseline;
   gap: 16px;
-  margin-bottom: 12px;
 }
 .numero {
   font-size: 48px;
@@ -212,18 +260,21 @@ h1 { font-size: 28px; margin-bottom: 4px; }
   font-size: 13px;
   color: var(--color-primary);
 }
-.tags-perfil {
+
+/* --- Card vazio --- */
+.card-vazio {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-tertiary);
+  text-align: center;
 }
-.tags-perfil span {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background: var(--color-bg, #ffffff);
-  color: var(--color-primary);
-  border: 1px solid var(--color-primary-border);
-}
+.card-vazio .ti { font-size: 36px; }
+.card-vazio p { font-size: 14px; }
+
 .acoes { display: flex; gap: 12px; }
 </style>

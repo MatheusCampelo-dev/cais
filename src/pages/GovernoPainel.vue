@@ -1,28 +1,70 @@
 <script setup>
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import GovernoLayout from '@/components/GovernoLayout.vue'
+import { useUserStore } from '@/store/user'
+import { adotantesService } from '@/service/index'
 
 const router = useRouter()
+const userStore = useUserStore()
 
-const kpis = [
-  { titulo: 'Processos ativos', valor: '312', variacao: '+8', tendencia: 'sobe', icone: 'ti-users', cor: 'azul' },
-  { titulo: 'Em fila de espera', valor: '187', variacao: '+12', tendencia: 'sobe', icone: 'ti-hourglass', cor: 'ambar' },
-  { titulo: 'Em aproximação', valor: '24', variacao: '+3', tendencia: 'sobe', icone: 'ti-heart-handshake', cor: 'verde' },
-  { titulo: 'Adoções no ano', valor: '18', variacao: '+2', tendencia: 'sobe', icone: 'ti-check', cor: 'roxo' }
-]
+const saudacao = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Bom dia'
+  if (h < 18) return 'Boa tarde'
+  return 'Boa noite'
+})
 
-const alertas = [
-  { tipo: 'urgente', titulo: 'Maria Silva — documento vencido', detalhe: 'Atestado de sanidade mental precisa ser reapresentado.', acao: 'Ver processo', rota: '/governo/adotantes/1' },
-  { tipo: 'alerta', titulo: 'Lar Nossa Senhora — lotado', detalhe: '40 de 40 vagas ocupadas. Considere redistribuir.', acao: 'Ver instituições', rota: '/governo/instituicoes' },
-  { tipo: 'info', titulo: '5 visitas marcadas para amanhã', detalhe: 'Acompanhe a agenda das instituições.', acao: 'Ver agenda', rota: '/governo/instituicoes' }
-]
+const dataHoje = computed(() =>
+  new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
+)
 
-const proximos = [
-  { hora: '09h', adotante: 'Paulo Mendes', tipo: 'Entrevista psicológica', status: 'confirmado' },
-  { hora: '10h30', adotante: 'Carla Souza', tipo: 'Audiência de adoção', status: 'confirmado' },
-  { hora: '14h', adotante: 'Roberto e Helena Cunha', tipo: 'Entrega de documentação', status: 'pendente' },
-  { hora: '16h', adotante: 'Maria Silva', tipo: 'Revisão de checklist', status: 'confirmado' }
-]
+const adotantes = ref([])
+const carregando = ref(true)
+
+const stats = computed(() => {
+  const lista = adotantes.value
+  return [
+    {
+      titulo: 'Total de adotantes',
+      valor: lista.length,
+      icone: 'ti-users',
+      cor: 'azul',
+      desc: 'cadastrados no sistema',
+    },
+    {
+      titulo: 'Com processo ativo',
+      valor: lista.filter(a => a.processo).length,
+      icone: 'ti-file-text',
+      cor: 'roxo',
+      desc: 'adotantes em acompanhamento',
+    },
+    {
+      titulo: 'Em fila de espera',
+      valor: lista.filter(a => a.processo?.etapa_atual === 'fila_de_espera').length,
+      icone: 'ti-hourglass',
+      cor: 'ambar',
+      desc: 'aguardando aproximação',
+    },
+    {
+      titulo: 'Em aproximação',
+      valor: lista.filter(a => ['aproximação', 'convivência'].includes(a.processo?.etapa_atual)).length,
+      icone: 'ti-heart-handshake',
+      cor: 'verde',
+      desc: 'em visitas ou convivência',
+    },
+  ]
+})
+
+onMounted(async () => {
+  try {
+    adotantes.value = await adotantesService.listar()
+  } catch {
+    // sem dados — cards mostram 0
+  } finally {
+    carregando.value = false
+  }
+})
 </script>
 
 <template>
@@ -30,70 +72,26 @@ const proximos = [
     <div class="conteudo">
       <div class="cabecalho">
         <div>
-          <h1>Bom dia, Carlos</h1>
-          <p class="subtitulo">Vara da Infância — Recife · 12 de maio de 2026</p>
-        </div>
-        <div class="acoes-cabecalho">
-          <button class="btn btn-ghost"><i class="ti ti-calendar"></i> Hoje</button>
-          <button class="btn btn-primary"><i class="ti ti-plus"></i> Nova ação</button>
+          <h1>{{ saudacao }}, {{ userStore.primeiroNome || userStore.nome }}</h1>
+          <p class="subtitulo">{{ dataHoje }}</p>
         </div>
       </div>
 
       <!-- KPIs -->
       <div class="kpis">
-        <div v-for="(kpi, idx) in kpis" :key="idx" class="kpi-card">
+        <div v-for="(kpi, idx) in stats" :key="idx" class="kpi-card">
           <div :class="['kpi-icone', `cor-${kpi.cor}`]">
             <i :class="['ti', kpi.icone]"></i>
           </div>
           <div class="kpi-info">
             <p class="kpi-titulo">{{ kpi.titulo }}</p>
-            <p class="kpi-valor">{{ kpi.valor }}</p>
-            <p class="kpi-variacao">
-              <i class="ti ti-trending-up"></i>
-              {{ kpi.variacao }} este mês
+            <p class="kpi-valor">
+              <template v-if="carregando">—</template>
+              <template v-else>{{ kpi.valor }}</template>
             </p>
+            <p class="kpi-desc">{{ kpi.desc }}</p>
           </div>
         </div>
-      </div>
-
-      <div class="grid-duplo">
-        <!-- Alertas -->
-        <section class="bloco">
-          <div class="bloco-header">
-            <h2>Alertas e ações</h2>
-            <a class="bloco-link">Ver todos</a>
-          </div>
-          <div class="alertas">
-            <div v-for="(alerta, idx) in alertas" :key="idx" :class="['alerta-card', `tipo-${alerta.tipo}`]">
-              <i :class="['ti', alerta.tipo === 'urgente' ? 'ti-alert-octagon' : alerta.tipo === 'alerta' ? 'ti-alert-triangle' : 'ti-info-circle']"></i>
-              <div class="alerta-info">
-                <p class="alerta-titulo">{{ alerta.titulo }}</p>
-                <p class="alerta-detalhe">{{ alerta.detalhe }}</p>
-              </div>
-              <button class="btn-link" @click="router.push(alerta.rota)">{{ alerta.acao }}</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Agenda do dia -->
-        <section class="bloco">
-          <div class="bloco-header">
-            <h2>Agenda de hoje</h2>
-            <a class="bloco-link">Ver semana</a>
-          </div>
-          <div class="agenda">
-            <div v-for="(item, idx) in proximos" :key="idx" class="agenda-item">
-              <span class="agenda-hora">{{ item.hora }}</span>
-              <div class="agenda-info">
-                <p class="agenda-adotante">{{ item.adotante }}</p>
-                <p class="agenda-tipo">{{ item.tipo }}</p>
-              </div>
-              <span :class="['agenda-status', `st-${item.status}`]">
-                {{ item.status === 'confirmado' ? 'Confirmado' : 'Pendente' }}
-              </span>
-            </div>
-          </div>
-        </section>
       </div>
 
       <!-- Atalhos -->
@@ -108,7 +106,7 @@ const proximos = [
           <button class="atalho" @click="router.push('/governo/instituicoes')">
             <i class="ti ti-building"></i>
             <span>Instituições</span>
-            <p>Monitorar lotação dos lares</p>
+            <p>Consultar abrigos cadastrados</p>
           </button>
         </div>
       </section>
@@ -128,14 +126,13 @@ const proximos = [
 }
 h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
 .subtitulo { font-size: 14px; color: var(--color-text-secondary); }
-.acoes-cabecalho { display: flex; gap: 8px; }
 
 /* KPIs */
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 .kpi-card {
   display: flex;
@@ -156,10 +153,10 @@ h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
   font-size: 20px;
   flex-shrink: 0;
 }
-.cor-azul { background: var(--color-primary-soft); color: var(--color-primary); }
+.cor-azul  { background: var(--color-primary-soft); color: var(--color-primary); }
 .cor-ambar { background: var(--color-warning-soft); color: var(--color-warning); }
 .cor-verde { background: var(--color-success-soft); color: var(--color-success); }
-.cor-roxo { background: #EEEDFE; color: #5448A6; }
+.cor-roxo  { background: #EEEDFE; color: #5448A6; }
 
 .kpi-info { flex: 1; }
 .kpi-titulo {
@@ -170,118 +167,30 @@ h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
   font-weight: 500;
 }
 .kpi-valor {
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 600;
   margin-top: 4px;
+  line-height: 1;
 }
-.kpi-variacao {
+.kpi-desc {
   font-size: 11px;
-  color: var(--color-success);
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  color: var(--color-text-tertiary);
+  margin-top: 6px;
 }
-
-/* Grid duplo */
-.grid-duplo {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.bloco {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 18px;
-}
-.bloco-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.bloco h2 { font-size: 15px; font-weight: 600; }
-.bloco-link {
-  font-size: 12px;
-  color: var(--color-primary);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-/* alertas */
-.alertas { display: flex; flex-direction: column; gap: 8px; }
-.alerta-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid;
-}
-.alerta-card .ti {
-  font-size: 18px;
-  flex-shrink: 0;
-}
-.tipo-urgente { background: var(--color-danger-soft); border-color: #F7C1C1; }
-.tipo-urgente .ti { color: var(--color-danger); }
-.tipo-alerta { background: var(--color-warning-soft); border-color: #F5D9A8; }
-.tipo-alerta .ti { color: var(--color-warning); }
-.tipo-info { background: var(--color-primary-soft); border-color: var(--color-primary-border); }
-.tipo-info .ti { color: var(--color-primary); }
-
-.alerta-info { flex: 1; min-width: 0; }
-.alerta-titulo { font-size: 13px; font-weight: 600; }
-.alerta-detalhe { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
-.btn-link {
-  font-size: 12px;
-  color: var(--color-primary);
-  font-weight: 500;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.btn-link:hover { text-decoration: underline; }
-
-/* agenda */
-.agenda { display: flex; flex-direction: column; gap: 1px; background: var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
-.agenda-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: var(--color-bg);
-}
-.agenda-hora {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-primary);
-  min-width: 42px;
-}
-.agenda-info { flex: 1; min-width: 0; }
-.agenda-adotante { font-size: 13px; font-weight: 500; }
-.agenda-tipo { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
-.agenda-status {
-  font-size: 10px;
-  padding: 3px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-}
-.st-confirmado { background: var(--color-success-soft); color: var(--color-success); }
-.st-pendente { background: var(--color-warning-soft); color: var(--color-warning); }
 
 /* atalhos */
 .atalhos h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
 .atalhos-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+  max-width: 520px;
 }
 .atalho {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 20px;
   text-align: left;
   transition: all 0.15s;
 }
@@ -289,7 +198,7 @@ h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; }
   border-color: var(--color-primary);
   box-shadow: var(--shadow-sm);
 }
-.atalho .ti { font-size: 22px; color: var(--color-primary); margin-bottom: 10px; display: block; }
-.atalho span { display: block; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.atalho .ti { font-size: 24px; color: var(--color-primary); margin-bottom: 12px; display: block; }
+.atalho span { display: block; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .atalho p { font-size: 12px; color: var(--color-text-tertiary); }
 </style>
